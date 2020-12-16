@@ -21,7 +21,7 @@ class PDFCreator: NSObject {
 
     // 3- create a PDFRenderer object with settings you made above
     let renderer = UIGraphicsPDFRenderer(bounds: pageRect, format: format)
-    // 4- includes a block where you create the PDF. The renderer creates a Core Graphics context that becomes the current context within the block. Drawing done on this context will appear on the PDF.
+    // 4- includes a block where you create the PDF. The renderer creates a Core Graphics context that becomes the current context within the block. Drawing done on this context will appear on the PDF. Core Graphics context begin at the top left corner and increase down and to the right. So you don't need to convert to PDF coordinate systme.
     let data = renderer.pdfData { (context) in
       // 5- starts new pdf page (call it more to create multiple pages)
       context.beginPage()
