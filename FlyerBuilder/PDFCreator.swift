@@ -4,12 +4,26 @@ import UIKit
 import PDFKit
 
 class PDFCreator: NSObject {
+  
+  let title: String
+  let body: String
+  let image: UIImage
+  let contactInfo: String
 
+  init(title: String, body: String, image: UIImage, contact: String) {
+    self.title = title
+    self.body = body
+    self.image = image
+    self.contactInfo = contact
+  }
+
+  
   func createFlyer() -> Data {
     // 1- create metadata and set the document info
     let pdfMetaData = [
       kCGPDFContextCreator: "Flyer Builder",
-      kCGPDFContextAuthor: "raywenderlich.com"
+      kCGPDFContextAuthor: "raywenderlich.com",
+      kCGPDFContextTitle: title
     ]
     let format = UIGraphicsPDFRendererFormat()
     format.documentInfo = pdfMetaData as [String: Any]
@@ -25,16 +39,128 @@ class PDFCreator: NSObject {
     let data = renderer.pdfData { (context) in
       // 5- starts new pdf page (call it more to create multiple pages)
       context.beginPage()
-      // 6- Using draw(at:withAttributes:) on a String draws the string to the current context.
-      let attributes = [
-        NSAttributedString.Key.font: UIFont.boldSystemFont(ofSize: 72)
-      ]
-      let text = "I'm a PDF!"
-      text.draw(at: CGPoint(x: 0, y: 0), withAttributes: attributes)
+      let titleBottom = addTitle(pageRect: pageRect)
+      // add a half-inch of space between the title and body text. 
+      let imageBottom = addImage(pageRect: pageRect, imageTop: titleBottom + 18.0)
+      addBodyText(pageRect: pageRect, textTop: imageBottom + 18.0)
+
     }
 
     return data
   }
+
+  //MARK: - CoreText
+  
+  func addTitle(pageRect: CGRect) -> CGFloat {
+    // 1- create instance of System font
+    let titleFont = UIFont.systemFont(ofSize: 18.0, weight: .bold)
+    // 2-
+    let titleAttributes: [NSAttributedString.Key: Any] =
+      [NSAttributedString.Key.font: titleFont]
+    // 3- you create NSAttributedString containing the text of the title in the chosen font.
+    let attributedTitle = NSAttributedString(
+      string: title,
+      attributes: titleAttributes
+    )
+    // 4- Using size() on the attributed string returns a rectangle with the size the text will occupy in the current context.
+    let titleStringSize = attributedTitle.size()
+    // 5- using additional layout functionality provided by Core Text.
+    let titleStringRect = CGRect(
+      x: (pageRect.width - titleStringSize.width) / 2.0, // centering
+      y: 36,
+      width: titleStringSize.width,
+      height: titleStringSize.height
+    )
+    // 6- draw inside the rectangle
+    attributedTitle.draw(in: titleStringRect)
+    // 7- find the coordinate of the bottom of the rectangle and return
+    return titleStringRect.origin.y + titleStringRect.size.height
+  }
+
+  //MARK: - NSParagraphStyle
+  
+  func addBodyText(pageRect: CGRect, textTop: CGFloat) {
+    let textFont = UIFont.systemFont(ofSize: 12.0, weight: .regular)
+    // 1- Natural alignment sets the alignment based on the localization of the app. Lines are set to wrap at word breaks.
+    let paragraphStyle = NSMutableParagraphStyle()
+    paragraphStyle.alignment = .natural
+    paragraphStyle.lineBreakMode = .byWordWrapping
+    // 2
+    let textAttributes = [
+      NSAttributedString.Key.paragraphStyle: paragraphStyle,
+      NSAttributedString.Key.font: textFont
+    ]
+    let attributedText = NSAttributedString(
+      string: body,
+      attributes: textAttributes
+    )
+    // 3- offsets 10 points from the left and sets the top at the passed value. The width is set to the width of the page minus a margin of 10 points on each side. The height is the distance from the top to 1/5 of the page height from the bottom.
+    let textRect = CGRect(
+      x: 10,
+      y: textTop,
+      width: pageRect.width - 20,
+      height: pageRect.height - textTop - pageRect.height / 5.0
+    )
+    attributedText.draw(in: textRect)
+  }
+
+  //MARK: - Adding Images to PDF
+  
+  func addImage(pageRect: CGRect, imageTop: CGFloat) -> CGFloat {
+    // 1
+    let maxHeight = pageRect.height * 0.4
+    let maxWidth = pageRect.width * 0.8
+    // 2- This ratio maximizes the size of the image while ensuring that it fits within the constraints.
+    let aspectWidth = maxWidth / image.size.width
+    let aspectHeight = maxHeight / image.size.height
+    let aspectRatio = min(aspectWidth, aspectHeight)
+    // 3- Calculate the scaled height and width for the image using the ratio.
+    let scaledWidth = image.size.width * aspectRatio
+    let scaledHeight = image.size.height * aspectRatio
+    // 4- Calculate the horizontal offset to center the image, just as you did earlier with the title text. Create a rectangle at this coordinate with the size you’ve calculated.
+    let imageX = (pageRect.width - scaledWidth) / 2.0
+    let imageRect = CGRect(x: imageX, y: imageTop,
+                           width: scaledWidth, height: scaledHeight)
+    // 5- This method scales the image to fit within the rectangle. Finally, return the coordinate of the bottom of the image to the caller, just as you did with the title text.
+    image.draw(in: imageRect)
+    return imageRect.origin.y + imageRect.size.height
+  }
+  
+  //MARK: - Drawing Graphics
+
+  // First, you’ll add lines on the page to separate the tear-off tabs. Then you’ll add the contact information to each tab.
+  // 1
+  func drawTearOffs(_ drawContext: CGContext, pageRect: CGRect,
+                    tearOffY: CGFloat, numberTabs: Int) {
+    // 2
+    drawContext.saveGState()
+    // 3
+    drawContext.setLineWidth(2.0)
+
+    // 4
+    drawContext.move(to: CGPoint(x: 0, y: tearOffY))
+    drawContext.addLine(to: CGPoint(x: pageRect.width, y: tearOffY))
+    drawContext.strokePath()
+    drawContext.restoreGState()
+
+    // 5
+    drawContext.saveGState()
+    let dashLength = CGFloat(72.0 * 0.2)
+    drawContext.setLineDash(phase: 0, lengths: [dashLength, dashLength])
+    // 6
+    let tabWidth = pageRect.width / CGFloat(numberTabs)
+    for tearOffIndex in 1..<numberTabs {
+      // 7
+      let tabX = CGFloat(tearOffIndex) * tabWidth
+      drawContext.move(to: CGPoint(x: tabX, y: tearOffY))
+      drawContext.addLine(to: CGPoint(x: tabX, y: pageRect.height))
+      drawContext.strokePath()
+    }
+    // 7
+    drawContext.restoreGState()
+  }
+
+  //MARK: - Adding Rotated Text
 
   
   

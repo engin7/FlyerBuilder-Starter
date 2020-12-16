@@ -64,13 +64,20 @@ class FlyerBuilderViewController: UIViewController {
     self.present(actionSheet, animated: true, completion: nil)
   }
   
+  
   override func prepare(for segue: UIStoryboardSegue, sender: Any?) {
     if segue.identifier == "previewSegue" {
       guard let vc = segue.destination as? PDFPreviewViewController else { return }
-      let pdfCreator = PDFCreator()
-      vc.documentData = pdfCreator.createFlyer()
+      
+      if let title = flyerTextEntry.text, let body = bodyTextView.text,
+        let image = imagePreview.image, let contact = contactTextView.text {
+        let pdfCreator = PDFCreator(title: title, body: body,
+                                    image: image, contact: contact)
+        vc.documentData = pdfCreator.createFlyer()
+      }
     }
   }
+  
 
   
 }
