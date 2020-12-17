@@ -43,6 +43,11 @@ class PDFCreator: NSObject {
       // add a half-inch of space between the title and body text. 
       let imageBottom = addImage(pageRect: pageRect, imageTop: titleBottom + 18.0)
       addBodyText(pageRect: pageRect, textTop: imageBottom + 18.0)
+      // adding dashed lines. You need a Core Graphics context to pass to this method. Use cgContext on the UIGraphicsPDFRendererContext to get one:
+      let context = context.cgContext
+      drawTearOffs(context, pageRect: pageRect, tearOffY: pageRect.height * 4.0 / 5.0,
+                   numberTabs: 8)
+      drawContactLabels(context, pageRect: pageRect, numberTabs: 8)
 
     }
 
@@ -129,40 +134,66 @@ class PDFCreator: NSObject {
   //MARK: - Drawing Graphics
 
   // First, you’ll add lines on the page to separate the tear-off tabs. Then you’ll add the contact information to each tab.
-  // 1
+  // 1- parameters: Graphics Context to draw on, rectangle of page, location, # of tabs
   func drawTearOffs(_ drawContext: CGContext, pageRect: CGRect,
                     tearOffY: CGFloat, numberTabs: Int) {
-    // 2
+    // 2- save the current state of the graphics context. Later, you'll restore the context, undoing all changes made between the two calls. This pairing keeps the environment consistent at the start of each step.
     drawContext.saveGState()
-    // 3
+    // 3- stroke line width
     drawContext.setLineWidth(2.0)
-
-    // 4
+    // 4- draw a horizontal line from the left to right side of the page at the passed height and then restore the state saved earlier.
     drawContext.move(to: CGPoint(x: 0, y: tearOffY))
     drawContext.addLine(to: CGPoint(x: pageRect.width, y: tearOffY))
     drawContext.strokePath()
     drawContext.restoreGState()
 
-    // 5
+    // 5-  you define an array with the length of the alternating solid and empty segments. Here, the array defines both the dashes and the spaces as 0.2 inches long.
     drawContext.saveGState()
     let dashLength = CGFloat(72.0 * 0.2)
     drawContext.setLineDash(phase: 0, lengths: [dashLength, dashLength])
-    // 6
+    // 6- calculate tabWidth
     let tabWidth = pageRect.width / CGFloat(numberTabs)
     for tearOffIndex in 1..<numberTabs {
-      // 7
+      // 7- draw in loop
       let tabX = CGFloat(tearOffIndex) * tabWidth
       drawContext.move(to: CGPoint(x: tabX, y: tearOffY))
       drawContext.addLine(to: CGPoint(x: tabX, y: pageRect.height))
       drawContext.strokePath()
     }
-    // 7
+    // 7- After you've drawn all the lines, you restore the graphics state.
     drawContext.restoreGState()
   }
 
   //MARK: - Adding Rotated Text
 
-  
-  
-  
+  func drawContactLabels(
+      _ drawContext: CGContext,
+      pageRect: CGRect, numberTabs: Int) {
+    let contactTextFont = UIFont.systemFont(ofSize: 10.0, weight: .regular)
+    let paragraphStyle = NSMutableParagraphStyle()
+    paragraphStyle.alignment = .natural
+    paragraphStyle.lineBreakMode = .byWordWrapping
+    let contactBlurbAttributes = [
+      NSAttributedString.Key.paragraphStyle: paragraphStyle,
+      NSAttributedString.Key.font: contactTextFont
+    ]
+    let attributedContactText = NSMutableAttributedString(
+                                  string: contactInfo,
+                                  attributes: contactBlurbAttributes
+                                )
+    // 1- You use size() to find the smallest size required to draw the string in the current context. You use height of the text to center it in the tabs. (because its rotated)
+    let textHeight = attributedContactText.size().height
+    let tabWidth = pageRect.width / CGFloat(numberTabs)
+    let horizontalOffset = (tabWidth - textHeight) / 2.0
+    drawContext.saveGState()
+    // 2- You want to rotate the text 90 degrees counterclockwise. You indicate counterclockwise with a negative angle transform. Core Graphics expects angles specified in radians.
+    drawContext.rotate(by: -90.0 * CGFloat.pi / 180.0)
+    for tearOffIndex in 0...numberTabs {
+      let tabX = CGFloat(tearOffIndex) * tabWidth + horizontalOffset
+      // 3- rotation changes coordinate system.
+      attributedContactText.draw(at: CGPoint(x: -pageRect.height + 5.0, y: tabX))
+    }
+    drawContext.restoreGState()
+  }
+ 
 }

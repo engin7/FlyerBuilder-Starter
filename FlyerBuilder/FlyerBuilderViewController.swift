@@ -29,7 +29,38 @@ class FlyerBuilderViewController: UIViewController {
   }
   
   @objc func shareAction() {
-    print("Share icon touched.")
+    
+    // 1- be sure all info provided
+    guard
+      let title = flyerTextEntry.text,
+      let body = bodyTextView.text,
+      let image = imagePreview.image,
+      let contact = contactTextView.text
+      else {
+        // 2
+        let alert = UIAlertController(
+          title: "All Information Not Provided",
+          message: "You must supply all information to create a flyer.",
+          preferredStyle: .alert
+        )
+          alert.addAction(UIAlertAction(title: "OK", style: .default, handler: nil))
+          present(alert, animated: true, completion: nil)
+          return
+      }
+    // 3- create a UIActivityViewController to provide and display the shared object's data.
+    let pdfCreator = PDFCreator(
+      title: title,
+      body: body,
+      image: image,
+      contact: contact
+    )
+    let pdfData = pdfCreator.createFlyer()
+    let vc = UIActivityViewController(
+      activityItems: [pdfData],
+      applicationActivities: []
+    )
+    present(vc, animated: true, completion: nil)
+ 
   }
   
   @IBAction func selectImageTouched(_ sender: Any) {
@@ -64,22 +95,48 @@ class FlyerBuilderViewController: UIViewController {
     self.present(actionSheet, animated: true, completion: nil)
   }
   
-  
-  override func prepare(for segue: UIStoryboardSegue, sender: Any?) {
-    if segue.identifier == "previewSegue" {
-      guard let vc = segue.destination as? PDFPreviewViewController else { return }
-      
-      if let title = flyerTextEntry.text, let body = bodyTextView.text,
-        let image = imagePreview.image, let contact = contactTextView.text {
-        let pdfCreator = PDFCreator(title: title, body: body,
-                                    image: image, contact: contact)
-        vc.documentData = pdfCreator.createFlyer()
+  override func shouldPerformSegue(withIdentifier identifier: String,
+                                   sender: Any?) -> Bool {
+    if
+      let _ = flyerTextEntry.text,
+      let _ = bodyTextView.text,
+      let _ = imagePreview.image,
+      let _ = contactTextView.text {
+        return true
       }
-    }
-  }
-  
+    // If not all fields given, app displays an error message and stops the segue.
+    let alert = UIAlertController(
+      title: "All Information Not Provided",
+      message: "You must supply all information to create a flyer.",
+      preferredStyle: .alert
+    )
+    alert.addAction(UIAlertAction(title: "OK", style: .default, handler: nil))
+    present(alert, animated: true, completion: nil)
 
-  
+    return false
+  }
+
+  override func prepare(for segue: UIStoryboardSegue, sender: Any?) {
+    
+    guard
+      segue.identifier == "previewSegue",
+      let vc = segue.destination as? PDFPreviewViewController,
+      let title = flyerTextEntry.text,
+      let body = bodyTextView.text,
+      let image = imagePreview.image,
+      let contact = contactTextView.text
+      else {
+        return
+    }
+
+    let pdfCreator = PDFCreator(
+      title: title,
+      body: body,
+      image: image,
+      contact: contact
+    )
+    vc.documentData = pdfCreator.createFlyer()
+  }
 }
 
 extension FlyerBuilderViewController: UIImagePickerControllerDelegate {
